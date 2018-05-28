@@ -1,0 +1,189 @@
+---
+title: "Base R => Tidy R"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+**Note**: For all snippets, df is set to the mtcars dataset.
+
+### Slice
+```{r slice}
+df <- mtcars
+# Base R
+df[1:5, ]
+# Tidy R
+df %>% slice(1:5)
+# Question: What happened to rownames?
+# All data frames have a row names attribute, a character vector of length the number of rows with no duplicates nor missing values. 
+# Gotcha: The slice operation silently drops the row names.
+# Resolution: Use rownames_to_columns() to explicitly save rownames as a column and column_to_rownames()
+# to convert the column back to the row names attribute.
+df %>% 
+	rownames_to_column() %>%
+	slice(1:5) %>%
+	column_to_rownames()
+# Gotcha: make sure to call column_to_rownames() on data frame not tbl. since it
+# was called on tbl bc of previous output from `slice`
+# Resolution: Use as.data.frame() after slice to convert tbl to data frame before calling column_to_rownames().
+df %>% 
+	rownames_to_column() %>%
+	slice(1:5) %>%
+  as.data.frame() %>%
+	column_to_rownames()
+```
+
+### Vector stuff
+
+```{r grab_vec}
+# Grab vector of column not df
+df <- mtcars
+# Base R
+df[1:5, 'mpg']
+# Tidy R
+df %>% slice(1:5) %>% pull(mpg)
+```
+
+### Data frame to tibble
+```{r conversion}
+df <- mtcars
+# convert df to tbl
+as.tibble(df)
+# back to df
+as.tibble(df) %>% as.data.frame()
+
+# data frame converts char to factors
+df <- data.frame(`:)` = "smile", 
+  ` ` = "space",
+  `2000` = "number")
+df
+# tibble doesn't do this
+tb <- tibble(
+  `:)` = "smile", 
+  ` ` = "space",
+  `2000` = "number"
+)
+tb
+```
+
+
+
+### Select
+
+#### Keep columns based on list of labels
+```{r select}
+# Base R
+df <- mtcars
+df <- df[, c('mpg', 'cyl', 'wt')]
+head(df)
+# Tidy R
+df <- mtcars
+# piping to head() for brevity
+select(df, c('mpg', 'cyl', 'wt')) %>% head()
+df %>% select(c('mpg', 'cyl', 'wt')) %>% head()
+```
+
+```{r select_errors}
+# Errors
+# w.o use of %>%
+# df <- mtcars
+# select(mpg, cyl, wt)
+# df <- mtcars
+# select(c('mpg', 'cyl', 'wt'))
+# # w. %>%
+# df <- mtcars %>% 
+# 	select(df, mpg, cyl, wt)
+# df <- mtcars %>% 
+# 	select(df, c('mpg', 'cyl', 'wt'))
+```
+
+#### Drop columns based on list of labels
+```{r drop_cols}
+# Base R
+df <- mtcars
+df <- df[, !(names(df) %in% c('mpg', 'cyl', 'wt'))]
+# Tidy R
+df <- mtcars %>% 
+	select(-mpg, -cyl, -wt)
+head(df)
+# or using one of the helper function of select: `one_of`
+df <- mtcars %>% 
+	select(-one_of(c('mpg', 'cyl', 'wt')))
+head(df)
+df <- mtcars %>% 
+	select(-one_of('mpg', 'cyl', 'wt'))
+head(df)
+# Gotcha: must supply a c() for one_of not just a list of unquoted col vars
+# df <- mtcars %>% 
+# 	select(-one_of(mpg, cyl, wt))
+# Other helper functions for select: https://dplyr.tidyverse.org/reference/select_helpers.html
+# Error: All arguments must be character vectors, not integer
+# General confusion might be what verbs and helper functions accept lists of vars or char vectors?
+# see confusion here: https://stackoverflow.com/questions/35839408/r-dplyr-drop-multiple-columns
+```
+
+### Filter
+
+#### Filter rows based on single condition
+```{r filter}
+# Base R
+df <- mtcars
+df <- df[df$cyl == 6, ]
+head(df)
+# Tidy R
+df <- mtcars %>% 
+	filter(cyl == 6)
+head(df)
+```
+
+#### Filter rows based on multiple conditions
+```{r filter_multiple}
+# Base R
+df <- mtcars
+df <- df[df$cyl == 6 & df$mpg >= 20, ]
+head(df)
+# Tidy R
+df <- mtcars %>% 
+	filter(cyl == 6 & mpg >= 20)
+head(df)
+# & -> comma
+df <- mtcars %>% 
+	filter(cyl == 6, mpg >= 20)
+head(df)
+```
+
+#### Filter using `between` helper function
+```{r filter_between}
+# Being more succinct, matter of style but can be nice recommendation
+# Filter using condition of form: x >= left & x <= right
+df <- mtcars
+df <- df[df$hp >= 200 & df$hp <= 300, ]
+head(df)
+# use a filter helper function: `between`
+df <- mtcars %>% 
+	filter(between(hp, 200, 300))
+head(df)
+```
+
+### Arrange
+```{r arrange}
+# Desc for mpg, if tie asc for wt (weight)
+df <- mtcars
+df <- df[order(-df$mpg, df$wt), ]
+head(df)
+df <- mtcars %>%
+	arrange(-mpg, wt)
+head(df)
+# or use desc for - which is doing the same thing for e.g. desc(1:2) -> -1, -2
+df <- mtcars %>%
+	arrange(desc(mpg), wt)
+head(df)
+```
+
+

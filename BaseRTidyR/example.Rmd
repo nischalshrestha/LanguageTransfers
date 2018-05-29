@@ -4,77 +4,115 @@ output:
   html_document:
     toc: true
     toc_float: true
+    # df_print: paged
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Dependencies
+```{r deps}
 library(tidyverse)
 ```
 
 **Note**: For all snippets, df is set to the mtcars dataset.
 
-### Slice
-```{r slice}
-df <- mtcars
-# Base R
-df[1:5, ]
-# Tidy R
-df %>% slice(1:5)
-# Question: What happened to rownames?
-# All data frames have a row names attribute, a character vector of length the number of rows with no duplicates nor missing values. 
-# Gotcha: The slice operation silently drops the row names.
-# Resolution: Use rownames_to_columns() to explicitly save rownames as a column and column_to_rownames()
-# to convert the column back to the row names attribute.
-df %>% 
-	rownames_to_column() %>%
-	slice(1:5) %>%
-	column_to_rownames()
-# Gotcha: make sure to call column_to_rownames() on data frame not tbl. since it
-# was called on tbl bc of previous output from `slice`
-# Resolution: Use as.data.frame() after slice to convert tbl to data frame before calling column_to_rownames().
-df %>% 
-	rownames_to_column() %>%
-	slice(1:5) %>%
-  as.data.frame() %>%
-	column_to_rownames()
+### Basics
+<!-- {.tabset} -->
+
+#### Data frame vs tibble
+**Printing**
+```{r print}
+# Base R prints all rows
+mtcars
+# Tidy R does not
+tbl_df(mtcars)
+# If you want custom print
+print(as.tibble(mtcars), n=11)
 ```
-
-### Vector stuff
-
-```{r grab_vec}
-# Grab vector of column not df
-df <- mtcars
-# Base R
-df[1:5, 'mpg']
-# Tidy R
-df %>% slice(1:5) %>% pull(mpg)
-```
-
-### Data frame to tibble
+**Convert one to the other**
 ```{r conversion}
 df <- mtcars
 # convert df to tbl
-as.tibble(df)
+as.tibble(df) %>% head()
 # back to df
-as.tibble(df) %>% as.data.frame()
-
+as.tibble(df) %>% as.data.frame() %>% head()
+```
+**Data frame converts characters to factors, tibble doesn't ever convert type**
+```{r conversion_types}
 # data frame converts char to factors
-df <- data.frame(`:)` = "smile", 
+df <- data.frame(
+  `:)` = "smile", 
   ` ` = "space",
   `2000` = "number")
-df
+str(df)
 # tibble doesn't do this
 tb <- tibble(
   `:)` = "smile", 
   ` ` = "space",
   `2000` = "number"
 )
-tb
+str(tb)
 ```
 
+**tidyverse tip**: When dealing with the tidyverse functions, the grammar is very consistent with the verbs. The first argument always takes in the data followed by the arguments of the verb. So when using the function as is (w.o the piping operator `%>%`), supply data frame as first argument. For eg: `slice(df, 1:5)` versus `df %>% slice(1:5)`
 
+#### Vector
+**Grab vector from a subset**
+```{r grab_vec}
+df <- mtcars
+# Base R
+df[1:5, 'mpg']
+# Tidy R
+df %>% slice(1:5) %>% pull(mpg)
+# or less idiomatic
+# The dot stands as a placeholder for the data being piped in by `%>%` operator
+# For e.g. df %>% .[['mpg']] is equivalent to df[['mpg']]
+df %>% slice(1:5) %>% .$mpg
+```
+
+#### Slice 
+```{r slice}
+df <- mtcars
+# Base R
+df[1:5, ]
+# Tidy R
+df %>% slice(1:5)
+```
+
+**Q**: Why are the row names missing? (version 1)
+
+**A**: All data frames have a row names attribute, a character vector of length the number of rows with no duplicates nor missing values. **Gotcha**: The `slice` verb silently drops the row names column.
+
+**Fix**: Use `rownames_to_columns()` to explicitly save rownames as a column and `column_to_rownames()` to convert the column back to the row names attribute.
+
+```{r rownames}
+df <- mtcars
+df %>% 
+	rownames_to_column() %>%
+	slice(1:5) %>%
+	column_to_rownames()
+```
+
+**Q**: Why are the row names missing? (version 2)
+
+**A**: `column_to_rownames()` was called on a `tibble` which is the data type output of `slice`. Remember that tibbles do not have a special row name attribute so it removes it.
+
+**Gotcha**: Calling `column_to_rownames()` on a tibble will not restore row names of original data frame. Make sure to call `column_to_rownames()` on data frame.
+ 
+**Fix**: Use `as.data.frame()` after `slice` to convert a tibble to a data frame before calling `column_to_rownames()`.
+```{r rownames_df}
+df %>% 
+	rownames_to_column() %>%
+	slice(1:5) %>%
+  as.data.frame() %>%
+	column_to_rownames()
+```
+**Note:** Version 1 and 2 can be combined by giving a more complete answer of anticipating the mistake in version 1 (calling `column_to_rownames()` on tibble). However, they're written out as two different versions so it's clear that one still runs into trouble if even if calling the `rownames_to_column` and `column_to_rownames()` functions; an extra function was needed to resolve this.
 
 ### Select
+<!-- {.tabset} -->
 
 #### Keep columns based on list of labels
 ```{r select}
@@ -82,25 +120,27 @@ tb
 df <- mtcars
 df <- df[, c('mpg', 'cyl', 'wt')]
 head(df)
-# Tidy R
+# Tidy R w.o %>%
 df <- mtcars
-# piping to head() for brevity
+# Tidy R w %>%
+# head() for less printing
 select(df, c('mpg', 'cyl', 'wt')) %>% head()
 df %>% select(c('mpg', 'cyl', 'wt')) %>% head()
 ```
 
-```{r select_errors}
-# Errors
-# w.o use of %>%
-# df <- mtcars
-# select(mpg, cyl, wt)
-# df <- mtcars
-# select(c('mpg', 'cyl', 'wt'))
-# # w. %>%
-# df <- mtcars %>% 
-# 	select(df, mpg, cyl, wt)
-# df <- mtcars %>% 
-# 	select(df, c('mpg', 'cyl', 'wt'))
+#### Possible Errors
+```{r select_errors, error=TRUE}
+# not using %>% or missing data frame as first argument
+df <- mtcars
+select(mpg, cyl, wt)
+df <- mtcars
+select(c('mpg', 'cyl', 'wt'))
+# w. %>%
+# supplying df for verbs while using %>% syntax
+df <- mtcars %>%
+	select(df, mpg, cyl, wt)
+df <- mtcars %>%
+	select(df, c('mpg', 'cyl', 'wt'))
 ```
 
 #### Drop columns based on list of labels
@@ -108,6 +148,7 @@ df %>% select(c('mpg', 'cyl', 'wt')) %>% head()
 # Base R
 df <- mtcars
 df <- df[, !(names(df) %in% c('mpg', 'cyl', 'wt'))]
+head(df)
 # Tidy R
 df <- mtcars %>% 
 	select(-mpg, -cyl, -wt)
@@ -116,10 +157,11 @@ head(df)
 df <- mtcars %>% 
 	select(-one_of(c('mpg', 'cyl', 'wt')))
 head(df)
+# Equivalent
 df <- mtcars %>% 
 	select(-one_of('mpg', 'cyl', 'wt'))
 head(df)
-# Gotcha: must supply a c() for one_of not just a list of unquoted col vars
+# Gotcha: must supply a char vector or list of quoted items, not a list of unquoted col vars
 # df <- mtcars %>% 
 # 	select(-one_of(mpg, cyl, wt))
 # Other helper functions for select: https://dplyr.tidyverse.org/reference/select_helpers.html
@@ -128,7 +170,8 @@ head(df)
 # see confusion here: https://stackoverflow.com/questions/35839408/r-dplyr-drop-multiple-columns
 ```
 
-### Filter
+### Filter 
+<!-- {.tabset} -->
 
 #### Filter rows based on single condition
 ```{r filter}
@@ -185,5 +228,4 @@ df <- mtcars %>%
 	arrange(desc(mpg), wt)
 head(df)
 ```
-
 
